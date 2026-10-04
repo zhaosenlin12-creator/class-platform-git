@@ -1,0 +1,23 @@
+[DEFAULT]
+findtime = 10m
+bantime = 6h
+maxretry = 8
+backend = auto
+
+[sshd]
+enabled = true
+port = ssh
+maxretry = 5
+findtime = 10m
+bantime = 24h
+
+[teaching-login]
+enabled = true
+port = http,https
+filter = teaching-login
+logpath = /var/log/nginx/access.log
+maxretry = 8
+findtime = 10m
+bantime = 12h
+action = iptables-multiport[name=teaching-login, port="http,https", protocol=tcp]
+         alert-webhook

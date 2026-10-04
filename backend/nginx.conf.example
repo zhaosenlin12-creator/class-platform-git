@@ -1,0 +1,194 @@
+# ===========================================
+# Nginx配置文件示例
+# 用于宝塔面板 - 教学平台
+# ===========================================
+# 
+# 使用说明：
+# 1. 在宝塔面板【网站】→ 选择您的站点 → 【配置文件】
+# 2. 将下面的配置复制粘贴（覆盖原内容）
+# 3. 修改域名和路径为您的实际配置
+# 4. 保存并重启Nginx
+#
+# ===========================================
+
+server {
+    listen 80;
+    listen 443 ssl http2;
+    server_name codebona.cn www.codebona.cn;
+    
+    # SSL证书配置（Let's Encrypt证书路径，宝塔会自动配置）
+    ssl_certificate /www/server/panel/vhost/cert/codebona.cn/fullchain.pem;
+    ssl_certificate_key /www/server/panel/vhost/cert/codebona.cn/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    
+    # 网站根目录
+    root /www/wwwroot/teaching-platform/web;
+    index index.html;
+    
+    # 访问日志
+    access_log /www/wwwlogs/teaching-platform-access.log;
+    error_log /www/wwwlogs/teaching-platform-error.log;
+    
+    # Gzip压缩
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+    
+    # ===========================================
+    # 前端页面（Vue Router history模式支持）
+    # ===========================================
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # ===========================================
+    # 后端API反向代理
+    # ===========================================
+    
+    # 系统接口
+    location /sys/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # 超时配置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+    # API接口
+    location /api/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # 教学相关接口
+    location /teaching/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    
+    # 学生管理接口
+    location /student/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    
+    # 班级管理接口
+    location /class/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    
+    # 课程管理接口
+    location /course/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    
+    # 作业管理接口
+    location /homework/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    
+    # 课堂管理接口
+    location /classroom/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-for $proxy_add_x_forwarded_for;
+    }
+    
+    # 教师接口
+    location /teacher/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    
+    # 关联关系接口
+    location /relation/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    
+    # ===========================================
+    # 静态文件（上传的文件）
+    # ===========================================
+    location ^~ /uploads/ {
+        alias /www/wwwroot/teaching-platform/backend/uploads/;
+        expires 30d;
+        access_log off;
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
+        autoindex off;
+    }
+    
+    # ===========================================
+    # 安全配置
+    # ===========================================
+
+    # 禁止访问项目源码目录（避免误配置导致源码/配置泄露）
+    location ^~ /backend/ { deny all; }
+    location ^~ /_backup/ { deny all; }
+
+    # 禁止访问隐藏文件
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+    
+    # 禁止访问敏感文件
+    location ~ \.(env|sql|log|bak)$ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+    
+    # ===========================================
+    # HTTP强制跳转HTTPS
+    # ===========================================
+    if ($server_port !~ 443){
+        rewrite ^(/.*)$ https://$host$1 permanent;
+    }
+    
+    # ===========================================
+    # SSL强化配置
+    # ===========================================
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:50m;
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+}
+
+
+
+
+
+
+
+

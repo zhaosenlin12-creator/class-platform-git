@@ -1,0 +1,25 @@
+# Local development database. Start it with:
+# docker compose --env-file backend/.env.local -f docker-compose.local.yml up -d mysql
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: teaching-platform-mysql-local
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-teaching_platform}
+      MYSQL_USER: ${DB_USER:-teaching_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-local-teaching-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password}
+    ports:
+      - "${DB_PORT:-3307}:3306"
+    volumes:
+      - teaching-platform-mysql-local-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$${MYSQL_USER}\" -p\"$${MYSQL_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  teaching-platform-mysql-local-data:
+    name: teaching-platform-mysql-local-data

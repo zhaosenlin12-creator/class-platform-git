@@ -1,0 +1,31 @@
+version: "3.9"
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: teaching-backend:prod
+    container_name: teaching-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    network_mode: host
+
+    # 安全加固
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 200
+    mem_limit: 1g
+    cpus: 1.0
+    ulimits:
+      nofile: 65535
+
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+

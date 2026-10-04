@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xlink="http://www.w3.org/1999/xlink">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta http-equiv="cache-control" content="no-cache">
+<meta charset="utf-8">
+
+<head>
+<title>Junior</title>
+<script src="../js/jquery.min.js"></script>
+<script src="../js/jquery.cokie.min.js"></script>
+<script src="../js/qiniu.min.js"></script>
+<script src="../js/common.js?v=27"></script>
+<script>
+    var uploadParam = {}
+    var workId = urlParams('workId')
+    var unitId = urlParams('unitId')
+    var departId = urlParams('departId')
+    var additionalId = urlParams('additionalId')
+    var scene = urlParams('scene') || 'create'
+    var access_token = getUserToken()
+    var qn_token = getQiniuToken()
+    var uploadTracker = {
+      projectInfo: null,
+      coverInfo: null
+    }
+
+    function getWorksReturnUrl() {
+      return '/student/works?tab=my&refresh=' + Date.now()
+    }
+
+    function getReturnUrl(defaultUrl) {
+      if (window.scratchJrPage === 'editor') {
+        return getWorksReturnUrl()
+      }
+      return defaultUrl || getWorksReturnUrl()
+    }
+
+    setInterval(function () {
+      qn_token = getQiniuToken()
+    }, 600 * 1000)
+
+    var observer = {
+      next(res) { },
+      error(err) {
+        console.log(1, err)
+      },
+      complete(res) {
+        if (res.key.includes('png')) {
+          uploadTracker.coverInfo = resolveUploadedFileInfo(res)
+        } else {
+          uploadTracker.projectInfo = resolveUploadedFileInfo(res)
+        }
+        uploadWork()
+      }
+    }
+
+    function handleFileUploaded(res) {
+      console.log(res)
+      if (res.success) {
+        var uploadedInfo = resolveUploadedFileInfo(res)
+        if (uploadedInfo.fileExtension === 'png') {
+          uploadTracker.coverInfo = uploadedInfo
+        } else {
+          uploadTracker.projectInfo = uploadedInfo
+        }
+        uploadWork()
+      } else {
+        alert('上传失败：' + res.message)
+      }
+    }
+
+    window.scratchJrPage = 'editor'
+    window.JrConfig = {
+        getReturnUrl: getReturnUrl,
+        onInit: function () {
+            if (!window.ScratchJr) {
+                return
+            }
+            window.ScratchJr.getGotoLink = function () {
+                return getReturnUrl('/student/works?tab=my')
+            }
+            window.ScratchJr.switchPage = function () {
+                window.location.replace(getReturnUrl('/student/works?tab=my'))
+            }
+        },
+        onSaveCloud: function(contents, name){
+            var uuid = window.uuid()
+            uploadParam.projectTitle = name
+            uploadTracker = {
+              projectInfo: null,
+              coverInfo: null
+            }
+            var defaultUploadType = getSysConfig('uploadType')
+            if (defaultUploadType == 'qiniu') {
+              upload2Qiniu(contents, 'scratchjr/' + uuid + '.sjr', name, observer)
+            } else {
+              update2Local(contents, name + '.sjr', 'scratchjr', handleFileUploaded)
+            }
+
+            window.ScratchJr.getProjectCover((r) => {
+                var blob = dataURLtoBlob(r)
+                if (defaultUploadType == 'qiniu') {
+                  upload2Qiniu(blob, 'scratchjr/' + uuid + '.png', name, observer)
+                } else {
+                  update2Local(blob, name + '.png', 'scratchjr', handleFileUploaded)
+                }
+            })
+        }
+    }
+
+    function uploadWork() {
+      if (!uploadTracker.projectInfo || !uploadTracker.coverInfo) {
+        return
+      }
+
+      upsertStudentWork({
+        workId: workId,
+        workName: uploadParam.projectTitle,
+        workType: 'scratchjr',
+        workFileUrl: uploadTracker.projectInfo.fileUrl,
+        workFileName: uploadTracker.projectInfo.fileName || (uploadParam.projectTitle + '.sjr'),
+        workFileSize: uploadTracker.projectInfo.fileSize,
+        workFileExtension: uploadTracker.projectInfo.fileExtension || 'sjr',
+        workCoverUrl: uploadTracker.coverInfo.fileUrl,
+        isPublic: false,
+        onSuccess: function (res) {
+          if (res && res.result && res.result.id) {
+            workId = res.result.id
+          }
+          alert('上传成功')
+        },
+        onError: function () {
+        }
+      })
+    }
+
+</script>
+<script type="text/javascript" src="work-return.js?v=1"></script>
+<script type="text/javascript" src="app.bundle.js?v=1"></script>
+</head>
+<body style="background: white;">
+<div class="frame" id="frame"></div>
+<div class="libframe" id="libframe"></div>
+<div class="paintframe" id="paintframe"></div>
+
+</body>
+</html>

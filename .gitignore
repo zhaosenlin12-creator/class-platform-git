@@ -1,0 +1,62 @@
+# Project-level generated and deployment-only files
+node_modules/
+web/node_modules/
+web/dist/
+backend/node_modules/
+
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+!backend/.env.*.example
+web/.env
+web/.env.*
+!web/.env.example
+!web/.env.*.example
+_tmp_token.txt
+
+# Runtime data and logs
+uploads/
+logs/
+backend/uploads/
+backend/logs/
+*.log
+*.pid
+*.bak.*
+*.backup*
+*.serve-*
+*.serve.*
+docker-compose*.bak*
+
+# Historical operational files containing embedded credentials or stale copies
+docker-fax.txt
+fix-docker-backend.sh
+fix-docker-oss.sh
+backend/backend/
+
+# Local tooling and generated reports
+.playwright-cli/
+.runtime/
+output/
+*.tsbuildinfo
+
+# Release binaries/staging; keep release documentation tracked
+release/**/*.zip
+release/**/backend-root/
+release/**/frontend-root/
+release/**/bundle-root/
+
+# Local backups and database dumps
+backup/
+backend/backup_*.sql
+*.bak
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

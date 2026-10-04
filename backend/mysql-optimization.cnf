@@ -1,0 +1,47 @@
+# MySQL优化配置 - 支持100+并发用户
+# 将此配置添加到 /etc/mysql/my.cnf 或 /etc/my.cnf
+
+[mysqld]
+# 基础配置
+max_connections = 200              # 最大连接数（默认151，提升到200）
+max_connect_errors = 1000          # 最大连接错误数
+connect_timeout = 60               # 连接超时时间
+
+# 缓冲区优化
+innodb_buffer_pool_size = 2G       # InnoDB缓冲池（服务器内存的50-70%）
+innodb_log_file_size = 256M        # 日志文件大小
+innodb_log_buffer_size = 16M       # 日志缓冲区
+
+# 查询缓存（MySQL 5.7及以下）
+query_cache_type = 1               # 启用查询缓存
+query_cache_size = 128M            # 查询缓存大小
+query_cache_limit = 2M             # 单个查询缓存限制
+
+# 临时表
+tmp_table_size = 64M               # 内存临时表大小
+max_heap_table_size = 64M          # 堆表最大大小
+
+# 线程缓存
+thread_cache_size = 50             # 线程缓存数量
+table_open_cache = 2000            # 表缓存
+
+# 超时设置
+wait_timeout = 600                 # 等待超时（10分钟）
+interactive_timeout = 600          # 交互超时
+
+# 慢查询日志（用于性能分析）
+slow_query_log = 1
+slow_query_log_file = /var/log/mysql/slow-query.log
+long_query_time = 2                # 超过2秒的查询记录为慢查询
+
+# InnoDB优化
+innodb_flush_log_at_trx_commit = 2 # 提升性能，降低数据安全性
+innodb_flush_method = O_DIRECT     # 避免双重缓冲
+innodb_file_per_table = 1          # 每个表独立表空间
+innodb_io_capacity = 2000          # IO容量
+innodb_read_io_threads = 4         # 读IO线程
+innodb_write_io_threads = 4        # 写IO线程
+
+# 字符集
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci

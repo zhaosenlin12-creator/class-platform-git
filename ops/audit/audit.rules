@@ -1,0 +1,37 @@
+-D
+-b 8192
+
+# Time changes
+-a always,exit -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time-change
+-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S clock_settime -k time-change
+-w /etc/localtime -p wa -k time-change
+
+# Identity files
+-w /etc/passwd -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+
+# SSH config
+-w /etc/ssh/sshd_config -p wa -k sshd-config
+
+# Cron persistence
+-w /etc/cron.d/ -p wa -k cron
+-w /etc/cron.daily/ -p wa -k cron
+-w /etc/cron.hourly/ -p wa -k cron
+-w /etc/cron.weekly/ -p wa -k cron
+-w /etc/cron.monthly/ -p wa -k cron
+-w /var/spool/cron/ -p wa -k cron
+
+# Systemd services
+-w /etc/systemd/system/ -p wa -k systemd
+
+# Nginx config
+-w /etc/nginx/ -p wa -k nginx
+
+# App directory
+-w /srv/teaching-platform/ -p wa -k teaching-platform
+
+# server-guard
+-w /usr/local/sbin/server-guard.sh -p wa -k guard
+-w /usr/local/sbin/server-guard-alert.sh -p wa -k guard

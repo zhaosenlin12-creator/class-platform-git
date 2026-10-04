@@ -1,0 +1,268 @@
+import Vue from 'vue'
+import axios from 'axios'
+import store from '@/store'
+import { VueAxios } from './axios'
+import {Modal, notification, message} from 'ant-design-vue'
+import { ACCESS_TOKEN } from "@/store/mutation-types"
+import { setupMock } from '@/mock/index'
+import { ErrorHandler } from './errorHandler'
+import { checkAPIPermission, addDataScopeFilter, handleAPIPermissionError } from './api-permission'
+
+// 请求缓存 (用于GET请求)
+const requestCache = new Map()
+const CACHE_EXPIRE_TIME = 5 * 60 * 1000 // 5分钟缓存
+
+// 请求取消 (防止重复请求)
+const pendingRequests = new Map()
+const CancelToken = axios.CancelToken
+
+/**
+ * 【指定 axios的 baseURL】
+ * 强制确保使用正确的API地址
+ * @type {*|string}
+ */
+// 多重检查确保API地址正确
+let apiBaseUrl;
+
+// 第一优先级：window._CONFIG
+if (window._CONFIG && window._CONFIG['domianURL']) {
+  apiBaseUrl = window._CONFIG['domianURL'];
+}
+// 第二优先级：localStorage
+else if (localStorage.getItem('domianURL')) {
+  apiBaseUrl = localStorage.getItem('domianURL');
+}
+// 第三优先级：sessionStorage
+else if (sessionStorage.getItem('domianURL')) {
+  apiBaseUrl = sessionStorage.getItem('domianURL');
+}
+// 最后的默认值
+else {
+  apiBaseUrl = "http://localhost:5000/api"; // 使用Mock服务器端口5000
+}
+
+// 创建 axios 实例
+const service = axios.create({
+  baseURL: apiBaseUrl, // api base_url
+  timeout: 60000 // 请求超时时间
+})
+
+// 启用Mock模式
+// setupMock(service) // 暂时禁用Mock模式，使用真实API
+
+const err = (error) => {
+  const token = Vue.ls.get(ACCESS_TOKEN)
+
+  // 增强错误日志记录 (不记录敏感信息)
+  console.error('API Request Error:', {
+    url: error.config && error.config.url,
+    method: error.config && error.config.method,
+    status: error.response && error.response.status,
+    message: error.message
+    // 注意: 不记录token或其他敏感信息
+  })
+
+  // 处理特殊的登录过期情况
+  if ((error.response && error.response.status === 500) || (error.response && error.response.status === 401)) {
+    const data = error.response.data
+    const isTokenExpired = data.message === "Token失效，请重新登录" ||
+                          (data.message && data.message.includes('token')) ||
+                          (data.message && data.message.includes('登录'))
+
+    if (token && isTokenExpired) {
+      // 统一的登录过期处理
+      Modal.error({
+        title: '登录已过期',
+        content: '很抱歉，登录已过期，请重新登录',
+        okText: '重新登录',
+        mask: false,
+        onOk: () => {
+          store.dispatch('Logout').then(() => {
+            Vue.ls.remove(ACCESS_TOKEN)
+            window.location.reload()
+          })
+        }
+      })
+      return Promise.reject(error)
+    }
+  }
+
+  // 使用统一的错误处理器
+  ErrorHandler.handleApiError(error, {
+    component: 'request_interceptor',
+    hasToken: !!token,
+    timestamp: new Date().toISOString()
+  })
+
+  // 更新store中的错误状态
+  if (error.config && error.config.url) {
+    const errorKey = error.config.url.split('/').pop() || 'unknown'
+    store.commit('SET_ERROR', {
+      key: errorKey,
+      error: {
+        status: error.response && error.response.status,
+        message: (error.response && error.response.data && error.response.data.message) || error.message,
+        timestamp: Date.now()
+      }
+    })
+  }
+
+  return Promise.reject(error)
+};
+
+// 生成请求唯一key
+function generateRequestKey(config) {
+  const { method, url, params, data } = config
+  return `${method}:${url}:${JSON.stringify(params)}:${JSON.stringify(data)}`
+}
+
+// 移除pending请求
+function removePendingRequest(config) {
+  const requestKey = generateRequestKey(config)
+  if (pendingRequests.has(requestKey)) {
+    const cancel = pendingRequests.get(requestKey)
+    cancel(requestKey)
+    pendingRequests.delete(requestKey)
+  }
+}
+
+// 请求缓存处理
+function getCachedResponse(config) {
+  if (config.method !== 'get' || config.disableCache) {
+    return null
+  }
+
+  const cacheKey = generateRequestKey(config)
+  const cached = requestCache.get(cacheKey)
+
+  if (cached && Date.now() - cached.timestamp < CACHE_EXPIRE_TIME) {
+    return cached.data
+  }
+
+  return null
+}
+
+// 设置响应缓存
+function setCachedResponse(config, response) {
+  if (config.method === 'get' && !config.disableCache) {
+    const cacheKey = generateRequestKey(config)
+    requestCache.set(cacheKey, {
+      data: response,
+      timestamp: Date.now()
+    })
+
+    // 自动清理过期缓存
+    setTimeout(() => {
+      if (requestCache.has(cacheKey)) {
+        const cached = requestCache.get(cacheKey)
+        if (Date.now() - cached.timestamp >= CACHE_EXPIRE_TIME) {
+          requestCache.delete(cacheKey)
+        }
+      }
+    }, CACHE_EXPIRE_TIME)
+  }
+}
+
+// request interceptor
+service.interceptors.request.use(config => {
+  const token = Vue.ls.get(ACCESS_TOKEN)
+  if (token) {
+    config.headers[ 'X-Access-Token' ] = token // 让每个请求携带自定义 token 请根据实际情况自行修改
+  }
+
+  // API权限检查
+  if (!checkAPIPermission(config)) {
+    message.error('您没有权限执行此操作')
+    return Promise.reject(new Error('Permission denied'))
+  }
+
+  // 添加数据范围过滤
+  config = addDataScopeFilter(config)
+
+  // 检查缓存 (GET请求)
+  const cachedResponse = getCachedResponse(config)
+  if (cachedResponse) {
+    return Promise.resolve(cachedResponse)
+  }
+
+  // 取消重复请求
+  removePendingRequest(config)
+  config.cancelToken = new CancelToken(cancel => {
+    const requestKey = generateRequestKey(config)
+    pendingRequests.set(requestKey, cancel)
+  })
+
+  // 添加请求重试配置
+  config.retry = config.retry || 2 // 默认重试2次
+  config.retryDelay = config.retryDelay || 1000 // 重试延迟1秒
+
+  if(config.method=='get'){
+    if(config.url.indexOf("sys/dict/getDictItems")<0){
+      config.params = {
+        _t: Date.parse(new Date())/1000,
+        ...config.params
+      }
+    }
+  }
+  return config
+},(error) => {
+  return Promise.reject(error)
+})
+
+// response interceptor
+service.interceptors.response.use(
+  (response) => {
+    // 移除已完成的请求
+    removePendingRequest(response.config)
+
+    // 设置缓存
+    setCachedResponse(response.config, response.data)
+
+    return response.data
+  },
+  (error) => {
+    // 移除失败的请求
+    if (error.config) {
+      removePendingRequest(error.config)
+    }
+
+    // 请求重试逻辑
+    const config = error.config
+    if (!config || !config.retry || error.message.includes('cancel')) {
+      return err(error)
+    }
+
+    config.__retryCount = config.__retryCount || 0
+
+    if (config.__retryCount >= config.retry) {
+      console.warn(`⚠️ 请求重试${config.retry}次后仍失败:`, config.url)
+      return err(error)
+    }
+
+    config.__retryCount++
+
+
+    // 创建新的Promise进行重试
+    const backoff = new Promise((resolve) => {
+      setTimeout(() => {
+        resolve()
+      }, config.retryDelay || 1000)
+    })
+
+    return backoff.then(() => {
+      return service(config)
+    })
+  }
+)
+
+const installer = {
+  vm: {},
+  install (Vue, router = {}) {
+    Vue.use(VueAxios, router, service)
+  }
+}
+
+export {
+  installer as VueAxios,
+  service as axios
+}

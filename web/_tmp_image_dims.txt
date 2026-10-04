@@ -1,0 +1,9 @@
+﻿Add-Type -AssemblyName System.Drawing
+Get-ChildItem 'D:\kaifa\class-platform\web\public\images\*.jpg' | ForEach-Object {
+  $img = [System.Drawing.Image]::FromFile($_.FullName)
+  try {
+    Write-Output ("{0}`t{1}x{2}`t{3}KB" -f $_.Name, $img.Width, $img.Height, [math]::Round($_.Length/1KB,1))
+  } finally {
+    $img.Dispose()
+  }
+}
